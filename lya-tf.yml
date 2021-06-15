@@ -1,0 +1,10 @@
+name: lya-tf
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - tensorflow
+  - jupyterlab
+  - ipykernel
+  - matplotlib
+prefix: /Users/jupiterding/miniconda3/envs/lya-tf

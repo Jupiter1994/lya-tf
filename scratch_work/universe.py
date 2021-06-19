@@ -4,12 +4,20 @@ import tensorflow as tf
 Mpc_cgs = 3.08568e24
 H0_100_cgs = 3.2407767493712897e-18
     
-# basic class that handles the flat LCDM Universe model
 class Universe:
+    '''
+    Basic class that handles the flat LCDM Universe model.
+
+    '''
     
-    # set the universe properties
-    # note: the six given parameters are tf variables
     def __init__(self, omega_b, omega_m, omega_l, h, sigma_8, n_s):
+        '''
+        Set the universe properties. 
+        
+        NOTE: The six parameters should be given as TensorFlow variables.
+        
+        '''
+        
         # load in properties
         self.omega_b = omega_b
         self.omega_m = omega_m

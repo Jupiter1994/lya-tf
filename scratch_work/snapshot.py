@@ -4,11 +4,21 @@ import tensorflow as tf
 # local modules
 import universe
 
-# basic class that handles a simulation snapshot
 class Snapshot:
-    
-    # create a snapshot from an HDF5 file's path
+    '''
+    Class that handles a simulation snapshot. 
+
+    '''
+
     def __init__(self, path):
+        '''
+        Create a snapshot from an HDF5 file.
+        
+        PARAMETERS
+        ----------
+        path: path to the HDF5 file
+        
+        '''
         self.file_path = path 
         snap = h5py.File(self.file_path,'r') # HDF file
         
@@ -29,25 +39,42 @@ class Snapshot:
         
         snap.close()
         
-    # read in a field with a given path, e.g. '/native_fields/baryon_density'
     def read_field(self, path):
+        '''
+        Read in a field from the snapshot's source file.
+        
+        PARAMETERS
+        ----------
+        path: the field's path within the file, e.g. '/native_fields/baryon_density'
+        
+        '''
         snap = h5py.File(self.file_path,'r')
-        field = snap[path]
+        field = tf.Variable(snap[path][()]) # convert ndarray to variable
 
         snap.close()
         
         return field
     
-    # write a field into a given path, e.g. '/derived_fields/tau_real'
     def write_field(self, field, path):
+        '''
+        Write a field into the snapshot's source file.
+        
+        PARAMETERS
+        ----------
+        path: the path to write the field into, e.g. '/derived_fields/tau_real'
+        
+        '''
         snap = h5py.File(self.file_path,'w')
         data = snap[path]
         data[...] = field
 
         snap.close()
     
-    # print info about the snapshot
     def print_metadata(self):
+        '''
+        Print info about the snapshot.
+        
+        '''
         print('Snapshot info:\n')
         print('File path:', self.file_path)
         print()

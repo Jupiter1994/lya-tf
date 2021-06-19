@@ -1,3 +1,9 @@
+'''
+Write the number density of neutral hydrogen (nHI), real- and redshift-space optical depths
+      into an HDF5 file.
+      
+'''
+
 import h5py
 import tensorflow as tf
 
@@ -7,8 +13,16 @@ import snapshot
 ## constants
 rho_crit_100_cgs = 1.8788200386793017e-29
 
-# given a field and its name (e.g. 'tau_real'), save it into the HDF5 file at path
 def write_field(field, name, path):
+    '''
+    Save a field into an HDF5 file.
+    
+    PARAMETERS
+    ----------
+    field: an array containing the field's values
+    name: field name, e.g. 'tau_real'
+    path: path of the HDF5 file to save to
+    '''
     f = h5py.File(path,'a') # 'a': read/write if file exists, create otherwise
 
     if name in f: # replace an existing dataset
@@ -19,9 +33,18 @@ def write_field(field, name, path):
 
     f.close()
         
-# given a snapshot, baryon density field, and temperature field, 
-# return the n_HI field
 def set_nhi(snap, rhob, temp):
+    '''
+    Compute the neutral hydrogen number density (n_HI) field.
+    
+    PARAMETERS
+    ----------
+    snap: a Snapshot object
+    rhob: baryon density field
+    temp: temperature field
+    
+    '''
+    
     a = snap.scale_factor
     z = snap.z
     u = snap.universe
@@ -54,6 +77,8 @@ def main():
     # read nhi into an HDF5 file
     results_path = 'derived_fields.h5'
     write_field(nhi, 'nhi', results_path)
+    
+    # TODO: calculate optical depth fields
     
     snap.close()
     

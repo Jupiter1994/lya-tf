@@ -16,7 +16,7 @@ class Snapshot:
         
         PARAMETERS
         ----------
-        path: path to the HDF5 file
+        path: the path to the HDF5 file
         
         '''
         self.file_path = path 
@@ -35,13 +35,13 @@ class Snapshot:
         h = tf.Variable(snap['universe'].attrs['hubble'])
         sigma_8, n_s = tf.Variable(0.), tf.Variable(0.)
 
-        self.univ = universe.Universe(omega_b, omega_m, omega_l, h, sigma_8, n_s)
+        self.universe = universe.Universe(omega_b, omega_m, omega_l, h, sigma_8, n_s)
         
         snap.close()
         
     def read_field(self, path):
         '''
-        Read in a field from the snapshot's source file.
+        Read in a field from the snapshot's source file. Returns a TF variable.
         
         PARAMETERS
         ----------
@@ -61,12 +61,13 @@ class Snapshot:
         
         PARAMETERS
         ----------
+        field: a 3D tensor
         path: the path to write the field into, e.g. '/derived_fields/tau_real'
         
         '''
         snap = h5py.File(self.file_path,'w')
         data = snap[path]
-        data[...] = field
+        data[...] = field.numpy()
 
         snap.close()
     

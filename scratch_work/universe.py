@@ -1,9 +1,7 @@
 import tensorflow as tf
 
-## constants
-Mpc_cgs = 3.08568e24
-H0_100_cgs = 3.2407767493712897e-18
-    
+from constants import *
+
 class Universe:
     '''
     Basic class that handles the flat LCDM Universe model.
@@ -70,7 +68,7 @@ class Universe:
         # since we want v in cm/s, return 1e5 times the above
         return 1.0e7 * chi * self.E(z) / (1.0 + z)
     
-    # TODO: implement universe.cc methods
+    # these methods aren't called elsewhere in Gimlet, so I'll ignore them for now
     def comoving_distance(z):
         pass
     

@@ -12,7 +12,7 @@ class DGS:
         
         PARAMETERS
         ----------
-        field: a 3D TensorFlow variable
+        field: a 3D tensor
         
         '''
         

@@ -6,14 +6,18 @@ class Grid:
 
     '''
     
-    def __init__(self, field):
+    def __init__(self, field, shape, size):
         '''
         Read in the field.
         
         PARAMETERS
         ----------
         field: a 3D tensor
+        shape: a vector containing the tensor's dimensions
+        size: a vector containing the field's physical dimensions
         
         '''
         
         self.field = field
+        self.shape = shape
+        self.size = size

@@ -65,7 +65,7 @@ def set_nhi(snap, rhob, temp):
     omega_b = u.omega_b()
     
     # initialize nhi array/grid and EOS object
-    N = 1024
+    N = rhob.shape[0]
     nhi = grid.Grid(tf.zeros([N,N,N]))
     eos_obj = eos.EOS_at_z(z)
     
@@ -86,9 +86,9 @@ def main():
     filename = "../../../../cscratch1/sd/jupiter/sim2_z3_FGPA_cgs.h5"
     snap = snapshot.Snapshot(filename)
     
-    # load in the density and temperature fields
-    rhob = grid.Grid(snap.read_field(ds_path_rhob))
-    temp = grid.Grid(snap.read_field(ds_path_temp))
+    # load in the density and temperature fields as grids
+    rhob = snap.read_field(ds_path_rhob)
+    temp = snap.read_field(ds_path_temp)
     
     ## compute nhi grid
     nhi = set_nhi(snap, rhob, temp)
@@ -100,18 +100,16 @@ def main():
     ## calculate optical depth fields
     
     # real-space tau
-    vpara = tf.zeros(rhob.shape)
-    # TODO: implement gmlt_spec_od_grid
-#   tau = gmlt_spec_od_grid(snap.universe, snap.z, nhi->dist, nhi->array,
-#         temp->array, vpara->array, dist->n(2), tau->array)
-    write_field(tau, 'tau_real', results_path)
+    vpara = grid.Grid(tf.zeros(rhob.shape))
+    tau_real = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,
+            nhi.field, temp.field, vpara.field, nhi.field.shape[2])
+    write_field(tau_real.field, 'tau_real', results_path)
     
     # redshift-space tau
     vpara = snap.read_field(ds_path_vz)
-    # TODO: implement gmlt_spec_od_grid
-#   tau = gmlt_spec_od_grid(snap.universe, snap.z, nhi->dist, nhi->array,
-#         temp->array, vpara->array, dist->n(2), tau->array)
-    write_field(tau, 'tau_red', results_path)
+    tau_red = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,
+            nhi.field, temp.field, vpara.field, nhi.field.shape[2])
+    write_field(tau_red.field, 'tau_red', results_path)
 
     
     snap.close()

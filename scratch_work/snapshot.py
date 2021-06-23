@@ -23,8 +23,9 @@ class Snapshot:
         snap = h5py.File(self.file_path,'r') # HDF file
         
         # Grid/domain properties
-        self.shape = snap['domain'].attrs['shape'] # 1024^3
-        self.size = snap['domain'].attrs['size']
+        # (for the example file, these are 1024^3 and 21.09375^3, respectively)
+        self.shape = snap['domain'].attrs['shape'] 
+        self.size = snap['domain'].attrs['size'] 
         
         # Universe properties
         self.z = tf.Variable(snap['universe'].attrs['redshift'])
@@ -53,7 +54,7 @@ class Snapshot:
 
         snap.close()
         
-        return field
+        return grid.Grid(field, self.shape, self.size)
     
     def write_field(self, field, path):
         '''

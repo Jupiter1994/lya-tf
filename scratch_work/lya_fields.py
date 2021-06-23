@@ -8,6 +8,8 @@ import h5py
 import tensorflow as tf
 
 # local modules
+import eos
+import grid
 import snapshot
 from spectrum import gmlt_spec_od_grid
 from constants import *
@@ -46,12 +48,13 @@ def write_field(field, dset_path, file_path):
 def set_nhi(snap, rhob, temp):
     '''
     Compute the neutral hydrogen number density (n_HI) field.
+    Returns a Grid object.
     
     PARAMETERS
     ----------
     snap: a Snapshot object
-    rhob: the baryon density field
-    temp: the temperature field
+    rhob: the baryon density field (a Grid object)
+    temp: the temperature field (a Grid object)
     
     '''
     
@@ -61,17 +64,21 @@ def set_nhi(snap, rhob, temp):
     h = u.h()
     omega_b = u.omega_b()
     
-    # TODO: initialize nhi array/grid
-    nhi = None
-       
+    # initialize nhi array/grid and EOS object
+    N = 1024
+    nhi = grid.Grid(tf.zeros([N,N,N]))
+    eos_obj = eos.EOS_at_z(z)
+    
     mean_rhob_cgs = omega_b * h*h * rho_crit_100_cgs
     a3_inv = 1.0 / (a * a * a)
+    rhob_cgs = mean_rhob_cgs * a3_inv * rhob
     
-    # TODO: run through EOS for each cell
-#     for (size_t i = 0; i < rhob->size(); ++i) {
-#         double rhob_cgs = mean_rhob_cgs * a3_inv * rhob_array[i];
-#         nyx_eos(&z, &rhob_cgs, temp_array + i, nhi_array + i);
-#     }
+    # run through EOS for each cell
+    for i in range(N):
+        for j in range(N):
+            for k in range(N):
+                nhi.field[i,j,k] = \
+                    eos_obj.nyx_eos(rhob_cgs.field[i,j,k], temp.field[i,j,k])
     
     return nhi
 
@@ -79,16 +86,16 @@ def main():
     filename = "../../../../cscratch1/sd/jupiter/sim2_z3_FGPA_cgs.h5"
     snap = snapshot.Snapshot(filename)
     
-    # TODO: initialize arrays/grids after loading in the tensors?
-    rhob = snap.read_field(ds_path_rhob)
-    temp = snap.read_field(ds_path_temp)
+    # load in the density and temperature fields
+    rhob = grid.Grid(snap.read_field(ds_path_rhob))
+    temp = grid.Grid(snap.read_field(ds_path_temp))
     
-    ## TODO: implement set_nhi
+    ## compute nhi grid
     nhi = set_nhi(snap, rhob, temp)
     
     # read nhi into an HDF5 file
     results_path = 'derived_fields_test.h5'
-    write_field(nhi, 'nhi', results_path)
+    write_field(nhi.field, 'nhi', results_path)
     
     ## calculate optical depth fields
     

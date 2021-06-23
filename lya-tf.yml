@@ -2,7 +2,8 @@ name: lya-tf
 channels:
   - defaults
 dependencies:
-  - python=3.8
+  - python=3.7
+  - numpy=1.18
   - tensorflow
   - jupyterlab
   - ipykernel

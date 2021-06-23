@@ -1,8 +1,8 @@
 import tensorflow as tf
     
-class DGS:
+class Grid:
     '''
-    Class that handles a scalar grid of doubles.
+    Class that handles a grid/scalar field of floats. 
 
     '''
     

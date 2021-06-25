@@ -2,6 +2,7 @@ import tensorflow as tf
 
 # local modules
 from constants import *
+import grid
 import util 
 
 odf_const = pi * e_cgs * e_cgs / (m_e_cgs * c_cgs)
@@ -61,7 +62,7 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     vth_factor = 2.0 * k_cgs / m_x
 
     # Initialize tau array
-    tau_array = tf.zeros([num_pixels])
+    tau_array = tf.zeros([num_pixels], dtype='float64')
 
     # Loop over elements, adding optical depth to nearby pixels
     for i in range(num_elements):
@@ -99,12 +100,13 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
             # Add tau contribution to the pixel.
             dxl = (v_pixel - vlc_l) / v_doppler
             dxh = (v_pixel - vlc_h) / v_doppler
-            tau_array[jw] += n_array[i] * (tf.math.erf(dxl) - tf.math.erf(dxh))
+            tau_i = n_array[i] * (tf.math.erf(dxl) - tf.math.erf(dxh))
+            tau_array = tf.tensor_scatter_nd_add(tau_array, [[jw]], [tau_i])
 
 
     # Don't forget prefactor.
     f = 0.5 * od_factor
-    tau_array[i] *= f
+    tau_array *= f
     
     return tau_array
 
@@ -134,22 +136,24 @@ def gmlt_spec_od_grid(universe, redshift, size,
     domain_v_size = universe.chi_to_velocity_cgs(l, redshift)
 
     # The optical depth prefactor (a float tensor)
-    odf = gmlt_spec_odf_hilya(universe.h(), universe.E(redshift))
+    odf = gmlt_spec_odf_hilya(universe.h, universe.E(redshift))
 
     # Iterate over axis1 and axis2. Copy skewer values, compute tau, and
     # save back to field.
     
-    tau = grid.Grid(tf.zeros([dist_nx, dist_ny, num_elements]), n_hi.shape, size)
+    tau_field = tf.zeros([dist_nx, dist_ny, num_elements], dtype='float64')
 
     # Iterate over sim grid skewers.
     for ix in range(dist_nx):
         for iy in range(dist_ny):            
             # Pass the skewer off and save back to tau
-            tau.field[ix, iy, :] = gmlt_spec_od_pwc_exact(odf, m_H_cgs, domain_v_size,
+            skewer = gmlt_spec_od_pwc_exact(odf, m_H_cgs, domain_v_size,
                 num_elements, n_hi[ix, iy, :], v_para[ix, iy, :], temp[ix, iy, :],
                 num_pixels)
+            # assign skewer to tau_field[ix,iy,:]
+            tau_field = tf.tensor_scatter_nd_add(tau_field, [[ix,iy]], [skewer])
         
-    return tau
+    return grid.Grid(tau_field, n_hi.shape, size)
 
 # this method isn't called elsewhere in Gimlet, so I'll ignore it for now
 def gmlt_spec_od_midpoint(prefactor, m_x,

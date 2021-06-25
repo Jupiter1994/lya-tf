@@ -2,6 +2,7 @@ import h5py
 import tensorflow as tf
 
 # local modules
+import grid
 import universe
 
 class Snapshot:
@@ -42,7 +43,7 @@ class Snapshot:
         
     def read_field(self, path):
         '''
-        Read in a field from the snapshot's source file. Returns a TF variable.
+        Read in a field from the snapshot's source file. Returns a Grid object.
         
         PARAMETERS
         ----------
@@ -55,6 +56,28 @@ class Snapshot:
         snap.close()
         
         return grid.Grid(field, self.shape, self.size)
+    
+    def read_field2(self, path, length):
+        '''
+        Read in a cubic section of a field. Returns a Grid object.
+        
+        PARAMETERS
+        ----------
+        path: the field's path within the snapshot file
+        length: the length of the section along one axis
+        
+        '''
+        # scale factor between the section and the full field
+        scale = length / float(self.shape[0])
+        
+        snap = h5py.File(self.file_path,'r')
+        # convert ndarray to variable
+        field = tf.Variable(snap[path][()], dtype='float64')
+        field = field[:length, :length, :length]
+
+        snap.close()
+        
+        return grid.Grid(field, [length,length,length], scale * self.size)
     
     def write_field(self, field, path):
         '''

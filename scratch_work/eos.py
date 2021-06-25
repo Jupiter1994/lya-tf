@@ -22,7 +22,7 @@ class EOS_at_z:
         
         self.z = z
         
-    def nyx_eos(rhob, temp):
+    def nyx_eos(self, rhob, temp):
         '''
         Calculate n_HI for a given density and temperature.
 
@@ -55,5 +55,6 @@ def main():
     nhi = eos_t.eos.nyx_eos(z, rhob_cgs, temp)
     print('nhi:', nhi)
 
+# prevent this script from being run accidentally
 if __name__ == '__main__':
     main()

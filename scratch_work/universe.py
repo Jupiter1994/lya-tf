@@ -29,15 +29,15 @@ class Universe:
         self.H_0 = 100.0 * h
         self.H_0_cgs = H0_100_cgs * h
         
-    # accessor methods
-    def omega_b(self): return self.omega_b
-    def omega_dm(self): return self.omega_dm
-    def omega_m(self): return self.omega_m
-    def omega_l(self): return self.omega_l
-    def h(self): return self.h
-    def sigma_8(self): return self.sigma_8
-    def n_s(self): return self.n_s
-    def H_0(self): return self.H_0
+    # Gimlet's accessor methods (don't seem to be necessary)
+#     def omega_b(self): return self.omega_b
+#     def omega_dm(self): return self.omega_dm
+#     def omega_m(self): return self.omega_m
+#     def omega_l(self): return self.omega_l
+#     def h(self): return self.h
+#     def sigma_8(self): return self.sigma_8
+#     def n_s(self): return self.n_s
+#     def H_0(self): return self.H_0
     
     # z is a number
     def E(self, z):

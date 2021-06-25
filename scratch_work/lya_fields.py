@@ -6,6 +6,7 @@ Write the number density of neutral hydrogen (nHI), real- and redshift-space opt
 
 import h5py
 import tensorflow as tf
+import time
 
 # local modules
 import eos
@@ -37,7 +38,7 @@ def write_field(field, dset_path, file_path):
     '''
     f = h5py.File(file_path,'a') # 'a': read/write if file exists, create otherwise
 
-    if name in f: # replace an existing dataset
+    if dset_path in f: # replace an existing dataset
         data = f[dset_path]
         data[...] = field.numpy()
     else: # create a new dataset
@@ -61,35 +62,43 @@ def set_nhi(snap, rhob, temp):
     a = snap.scale_factor
     z = snap.z
     u = snap.universe
-    h = u.h()
-    omega_b = u.omega_b()
+    h = u.h
+    omega_b = u.omega_b
     
-    # initialize nhi array/grid and EOS object
-    N = rhob.shape[0]
-    nhi = grid.Grid(tf.zeros([N,N,N]))
+    # initialize nhi array and EOS object
+    nhi_field = tf.zeros(rhob.shape, dtype='float64')
     eos_obj = eos.EOS_at_z(z)
     
     mean_rhob_cgs = omega_b * h*h * rho_crit_100_cgs
     a3_inv = 1.0 / (a * a * a)
-    rhob_cgs = mean_rhob_cgs * a3_inv * rhob
+    rhob_cgs = mean_rhob_cgs * a3_inv * rhob.field
     
     # run through EOS for each cell
+    N = rhob.shape[0]
     for i in range(N):
         for j in range(N):
             for k in range(N):
-                nhi.field[i,j,k] = \
-                    eos_obj.nyx_eos(rhob_cgs.field[i,j,k], temp.field[i,j,k])
+                rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
+                # assign rho to nhi_field[i,j,k]
+                nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
     
-    return nhi
+    return grid.Grid(nhi_field, rhob.shape, rhob.size)
 
 def main():
-    filename = "../../../../cscratch1/sd/jupiter/sim2_z3_FGPA_cgs.h5"
+    start = time.time()
+    
+    filename = "../../../../../cscratch1/sd/jupiter/sim2_z3_FGPA_cgs.h5"
     snap = snapshot.Snapshot(filename)
-    
+        
     # load in the density and temperature fields as grids
-    rhob = snap.read_field(ds_path_rhob)
-    temp = snap.read_field(ds_path_temp)
+#     rhob = snap.read_field(ds_path_rhob)
+#     temp = snap.read_field(ds_path_temp)
     
+    # test with smaller grids
+    n = 4
+    rhob = snap.read_field2(ds_path_rhob, n)
+    temp = snap.read_field2(ds_path_temp, n)
+        
     ## compute nhi grid
     nhi = set_nhi(snap, rhob, temp)
     
@@ -97,21 +106,29 @@ def main():
     results_path = 'derived_fields_test.h5'
     write_field(nhi.field, 'nhi', results_path)
     
+    print('Checkpoint:', time.time() - start)
+
     ## calculate optical depth fields
     
     # real-space tau
-    vpara = grid.Grid(tf.zeros(rhob.shape))
+    vpara = grid.Grid(tf.zeros(rhob.shape, dtype='float64'), rhob.shape, rhob.size)
     tau_real = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,
             nhi.field, temp.field, vpara.field, nhi.field.shape[2])
     write_field(tau_real.field, 'tau_real', results_path)
     
+    print('Checkpoint:', time.time() - start)
+
+    
     # redshift-space tau
-    vpara = snap.read_field(ds_path_vz)
+    #vpara = snap.read_field(ds_path_vz)
+    vpara = snap.read_field2(ds_path_vz, n)
     tau_red = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,
             nhi.field, temp.field, vpara.field, nhi.field.shape[2])
     write_field(tau_red.field, 'tau_red', results_path)
 
+    print('Checkpoint:', time.time() - start)
+
     
-    snap.close()
-    
-    
+# prevent this script from being run accidentally
+if __name__ == '__main__':
+    main()

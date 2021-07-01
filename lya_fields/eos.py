@@ -20,19 +20,21 @@ class EOS_at_z:
         
         '''
         
-        self.z = z
+        self.z = float(z)
         
-    def nyx_eos(self, rhob, temp):
+    def nyx_eos(self, values):
         '''
         Calculate n_HI for a given density and temperature.
 
         PARAMETERS
         ----------
-        rhob: a float
-        temp: a float
+        values: a tuple containing (rhob, temp)
         
         '''
         
+        rhob = values[0]
+        temp = values[1]
+                        
         return eos_t.eos.nyx_eos(self.z, rhob, temp)
         
 def main():

@@ -66,7 +66,7 @@ def set_nhi(snap, rhob, temp):
     omega_b = u.omega_b
     
     # initialize nhi array and EOS object
-    nhi_field = tf.zeros(rhob.shape, dtype='float64')
+    #nhi_field = tf.zeros(rhob.shape, dtype='float64')
     eos_obj = eos.EOS_at_z(z)
     
     mean_rhob_cgs = omega_b * h*h * rho_crit_100_cgs
@@ -76,12 +76,14 @@ def set_nhi(snap, rhob, temp):
     # run through EOS for each cell
     start2 = time.time()
     
-    for i in range(rhob.shape[0]):
-        for j in range(rhob.shape[1]):
-            for k in range(rhob.shape[2]):
-                rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
-                # assign rho to nhi_field[i,j,k]
-                nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
+    elems = (rhob_cgs, temp.field)
+    nhi_field = tf.vectorized_map(eos_obj.nyx_eos, elems=elems)
+#     for i in range(rhob.shape[0]):
+#         for j in range(rhob.shape[1]):
+#             for k in range(rhob.shape[2]):
+#                 rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
+#                 # assign rho to nhi_field[i,j,k]
+#                 nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
      
     print('EOS duration:', time.time() - start2)
     
@@ -96,7 +98,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 512, 512]
+    shape = [1, 10, 10]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])

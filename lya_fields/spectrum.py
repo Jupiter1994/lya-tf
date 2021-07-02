@@ -40,8 +40,8 @@ def gmlt_spec_odf_hilya(h, e_z):
 def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements, 
                            n_array, vpara_array, t_array, num_pixels):
     '''
-    Analytic form for piecewise constant data. 
-    Returns a 1D tensor.
+    Analytic form for piecewise constant data. Returns a 1D tensor
+    that contains the optical depth of each cell along a line of sight.
     
     PARAMETERS
     ----------
@@ -68,8 +68,11 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     # Loop over elements, adding optical depth to nearby pixels
     for i in range(num_elements):
         # make sure this cell has positive density.
+        # with vectorized_map, neither of the below pieces of code work:
         if (n_array[i] <= 0.0):
             continue
+
+        # assert tf.math.greater(n_array[i], 0.0)
             
         # thermal velocity.
         v_doppler = tf.math.sqrt(vth_factor * (t_array[i] + t_min))
@@ -83,15 +86,18 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
         pix_doppler = v_doppler / pixel_dv
 
         # Figure out which pixels we should restrict to.
-        num_integ_pixels = (int)(5 * pix_doppler + 0.5) + 1
+        num_integ_pixels = tf.cast(5 * pix_doppler + 0.5, dtype=tf.int32) + 1
+        num_integ_pixels = tf.cast(num_integ_pixels, dtype=tf.float64)
         ipix_lo = pix_lc - num_integ_pixels - 1
         ipix_hi = pix_lc + num_integ_pixels + 1
         
         # convert from float tensor to int
-        ipix_lo = (int) (ipix_lo.numpy())
-        ipix_hi = (int) (ipix_hi.numpy())
+        ipix_lo = tf.cast(ipix_lo, dtype=tf.int32)
+        ipix_hi = tf.cast(ipix_hi, dtype=tf.int32)
 
         # Include the hi bin.
+#         print(ipix_lo)
+#         print(ipix_lo.eval())
         for j in range(ipix_lo, ipix_hi + 1):
             # Calculate the bin velocity with the original index to match v_lc.
             v_pixel = pixel_dv * (j + 0.5)
@@ -111,17 +117,32 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     
     return tau_array
 
+def reshape_2d(arr):
+    '''
+    Reshape a tensor of shape (x, y, z) to (x*y, z). This is applied to the fields in
+    gmlt_spec_od_grid in order to support vectorization.
+
+    PARAMETERS
+    ----------
+    arr: a 3D tensor
+
+    '''
+
+    x,y,z = arr.shape
+
+    return tf.reshape(arr, (x*y, z))
+    
 def gmlt_spec_od_grid(universe, redshift, size, 
                       n_hi, temp, v_para, num_pixels):
     '''
-    Assuming that the sim and spectral shapes are the same here.
     Returns a Grid object with the same shape and size as the input fields.
+    (This method assumes that the sim and spectral shapes are the same.)
     
     PARAMETERS
     ----------
     universe: a Universe object
     redshift: a float
-    size: physical dimensions of the field (a vector)
+    size: physical dimensions of the field (a 3-term vector)
     n_hi, temp, v_para: the fields of the corresponding Grid objects (3D tensors)
     num_pixels: the output's length along the z-axis (an int)
     
@@ -142,19 +163,48 @@ def gmlt_spec_od_grid(universe, redshift, size,
     # Iterate over axis1 and axis2. Copy skewer values, compute tau, and
     # save back to field.
     
-    tau_field = tf.zeros([dist_nx, dist_ny, num_elements], dtype='float64')
+    #tau_field = tf.zeros([dist_nx, dist_ny, num_elements], dtype='float64')
 
     # Iterate over sim grid skewers.
     start2 = time.time()
     
-    for ix in range(dist_nx):
-        for iy in range(dist_ny):            
-            # Pass the skewer off and save back to tau
-            skewer = gmlt_spec_od_pwc_exact(odf, m_H_cgs, domain_v_size,
-                num_elements, n_hi[ix, iy, :], v_para[ix, iy, :], temp[ix, iy, :],
-                num_pixels)
-            # assign skewer to tau_field[ix,iy,:]
-            tau_field = tf.tensor_scatter_nd_add(tau_field, [[ix,iy]], [skewer])
+    # @tf.function(); including this throws a "Tensor can't be used as Python bool" error
+    def od_pwc_exact2(skewers):
+        '''
+        Call gmlt_spec_od_pwc_exact, except all arguments (besides the 3 skewers)
+        are pre-specified in gmlt_spec_od_grid.
+        
+        PARAMETERS
+        ----------
+        skewers: (n_hi, temp, v_para), a tuple of skewers (1D tensors)
+        
+        '''
+        
+        n = skewers[0]
+        t = skewers[1]
+        vp = skewers[2]
+
+        return gmlt_spec_od_pwc_exact(odf, m_H_cgs, domain_v_size, num_elements,
+                                     n, vp, t, num_pixels)
+    
+    # apply od_pwc_exact2 to x*y skewers
+    
+    skewers = (reshape_2d(n_hi), reshape_2d(temp), reshape_2d(v_para))
+    # vectorized_map throws errors
+    # tau_field = tf.vectorized_map(od_pwc_exact2, skewers)
+    tau_field = tf.map_fn(od_pwc_exact2, skewers, fn_output_signature=tf.float64)
+        
+    # reshape tau from (x*y,z) to (x,y,z)
+    tau_field = tf.reshape(tau_field, n_hi.shape) # reshape (x*y,z) to (x,y,z)
+    
+#     for ix in range(dist_nx):
+#         for iy in range(dist_ny):            
+#             # Pass the skewer off and save back to tau
+#             skewer = gmlt_spec_od_pwc_exact(odf, m_H_cgs, domain_v_size,
+#                 num_elements, n_hi[ix, iy, :], v_para[ix, iy, :], temp[ix, iy, :],
+#                 num_pixels)
+#             # assign skewer to tau_field[ix,iy,:]
+#             tau_field = tf.tensor_scatter_nd_add(tau_field, [[ix,iy]], [skewer])
     
     print('tau duration:', time.time() - start2)
         

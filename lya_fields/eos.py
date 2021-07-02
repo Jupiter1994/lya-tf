@@ -22,19 +22,30 @@ class EOS_at_z:
         
         self.z = float(z)
         
-    def nyx_eos(self, values):
+    def nyx_eos(self, rhob, temp):
         '''
         Calculate n_HI for a given density and temperature.
 
         PARAMETERS
         ----------
-        values: a tuple containing (rhob, temp)
+        rhob, temp: floats or 1-element tensors
         
         '''
+
+        return eos_t.eos.nyx_eos(self.z, rhob, temp)
+    
+    def nyx_eos_vec(self, arr):
+        '''
+        A version of nyx_eos that supports vectorization.
+
+        PARAMETERS
+        ----------
+        arr: tuple containing (rhob, temp)
         
-        rhob = values[0]
-        temp = values[1]
-                        
+        '''
+        rhob = arr[0]
+        temp = arr[1]
+
         return eos_t.eos.nyx_eos(self.z, rhob, temp)
         
 def main():

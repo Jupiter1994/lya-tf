@@ -107,7 +107,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 100, 100]
+    shape = [1, 20, 20]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])

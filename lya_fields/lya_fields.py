@@ -107,7 +107,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 20, 20]
+    shape = [1, 10, 1024]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])
@@ -116,8 +116,8 @@ def main():
     t_path = 'times/times' + dims_str + '.txt'
     results_path = 'results/tf_fields' + dims_str + '.h5'
     
-    rhob = snap.read_field2(ds_path_rhob, shape)
-    temp = snap.read_field2(ds_path_temp, shape)
+    rhob = snap.read_subfield(ds_path_rhob, shape)
+    temp = snap.read_subfield(ds_path_temp, shape)
     
     # track routine durations
     times = open(t_path, 'w')
@@ -144,7 +144,7 @@ def main():
     # redshift-space tau
     
     #vpara = snap.read_field(ds_path_vz)
-    vpara = snap.read_field2(ds_path_vz, shape)
+    vpara = snap.read_subfield(ds_path_vz, shape)
     
     start = time.time()
     tau_red = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,

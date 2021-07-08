@@ -57,7 +57,7 @@ class Snapshot:
         
         return grid.Grid(field, self.shape, self.size)
     
-    def read_field2(self, path, subshape):
+    def read_subfield(self, path, subshape):
         '''
         Read in a subsection of a field from (0,0,0). Returns a Grid object.
         

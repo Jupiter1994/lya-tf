@@ -5,6 +5,8 @@ Write the number density of neutral hydrogen (nHI), real- and redshift-space opt
 '''
 
 import h5py
+import numpy as np
+import scipy.interpolate as interp
 import tensorflow as tf
 import time
 
@@ -48,8 +50,7 @@ def write_field(field, dset_path, file_path):
         
 def set_nhi(snap, rhob, temp):
     '''
-    Compute the neutral hydrogen number density (n_HI) field.
-    Returns a Grid object.
+    Interpolate n(rho, T) and its gradients, calls compute_nhi, and returns the n_HI grid.
     
     PARAMETERS
     ----------
@@ -59,33 +60,119 @@ def set_nhi(snap, rhob, temp):
     
     '''
     
+    ## load in snapshot properties
     a = snap.scale_factor
     z = snap.z
     u = snap.universe
     h = u.h
     omega_b = u.omega_b
     
-    # initialize nhi array and EOS object
-    nhi_field = tf.zeros(rhob.shape, dtype='float64')
-    eos_obj = eos.EOS_at_z(z)
-    
     mean_rhob_cgs = omega_b * h*h * rho_crit_100_cgs
     a3_inv = 1.0 / (a * a * a)
-    rhob_cgs = mean_rhob_cgs * a3_inv * rhob.field
+    #rhob_cgs = mean_rhob_cgs * a3_inv * rhob.field
+
+    # initialize EOS object
+    #nhi_field = tf.zeros(rhob.shape, dtype='float64')
+    eos_obj = eos.EOS_at_z(z)
     
-    # run through EOS for each cell
     start2 = time.time()
     
-    for i in range(rhob.shape[0]):
-        for j in range(rhob.shape[1]):
-            for k in range(rhob.shape[2]):
-                rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
-                # assign rho to nhi_field[i,j,k]
-                nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
-     
+    ## interpolate the function f, which represents n(log(rho), log(T))
+
+    # set the ranges for interpolation
+    length = 100 
+    
+    log10_rho_range = np.linspace(-1, 3, num=length)
+    rho_range = 10**log10_rho_range
+    rhob_cgs_range = mean_rhob_cgs * a3_inv * rho_range
+
+    log10_t_range = np.linspace(3, 6, num=length)
+    temp_range = 10**log10_t_range
+    
+    # note: this is just a 2D grid, NOT a Grid object
+    nhi_grid = np.ndarray((length, length))
+    for i in range(length):
+        for j in range(length):
+            nhi_grid[i, j] = eos_obj.nyx_eos(rhob_cgs_range[i], temp_range[j])
+    
+    deg = 3 # degree of spline; default is 3
+    f = interp.RectBivariateSpline(log10_rho_range, log10_t_range, nhi_grid, kx=deg, ky=deg)
+    
+    ## interpolate the 1st-order partial derivatives: n_[log(rho)] and n_[log(T)]
+    f_logr_grid = f(log10_rho_range, log10_t_range, dx=1, dy=0)
+    f_logr = interp.interp2d(log10_rho_range, log10_t_range, f_logr_grid)
+
+    f_logt_grid = f(log10_rho_range, log10_t_range, dx=0, dy=1)
+    f_logt = interp.interp2d(log10_rho_range, log10_t_range, f_logt_grid)
+    
+    # get log10(x) via change of base formula
+    log10_rhob = tf.math.log(rhob.field) / np.log(10)
+    log10_temp = tf.math.log(temp.field) / np.log(10)
+    
+    # pass the 2 fields and 3 functions to compute_nhi
+    nhi_field = compute_nhi(log10_rhob, log10_temp, f, f_logr, f_logt)
+    
     print('EOS duration:', time.time() - start2)
     
     return grid.Grid(nhi_field, rhob.shape, rhob.size)
+
+def flatten(t):
+    '''
+    Flatten an array or tensor t. Used in compute_nhi.
+    
+    '''
+    size = tf.size(t)
+    return tf.reshape(t, [size])
+
+def unflatten(t, shape):
+    '''
+    Unflatten an array or tensor t to have a specified shape. Used in compute_nhi.
+    
+    '''
+
+    return tf.reshape(t, shape)
+
+@tf.custom_gradient
+def compute_nhi(log10_rhob, log10_temp, n, n_logr, n_logt):
+    '''
+    Compute the neutral hydrogen number density (n_HI) field, returning a tensor. 
+    Includes a custom gradient function.
+    
+    PARAMETERS
+    ----------
+    log10_rhob, log10_temp: 3D tensors containing log10(rho) and log10(T)
+    n: n(log(rho), log(T)) (function interpolated with RectBivariateSpline)
+    n_logr, n_logt: the partial derivatives of n_log10 w.r.t. log10(rho) and log10(T), 
+    respectively (functions interpolated with interp2d)
+    
+    '''    
+    
+    def grad(upstream):
+        '''
+        Compute the gradients dn/drho and dn/dt via chain rule:
+        dn/dx = dn/dlogx * dlogx/dx = dn/dlogx / x / ln(10)
+        
+        '''
+        
+        # compute the dn/dlogx tensors 
+        dn_dlogr = interp.dfitpack.bispeu(n_logr.tck[0], n_logr.tck[1], n_logr.tck[2], \
+                                          n_logr.tck[3], n_logr.tck[4], \
+                                        flatten(log10_rhob), flatten(log10_temp))[0]
+        dn_dlogr = unflatten(dn_dlogr, log10_rhob.shape)
+
+        dn_dlogt = interp.dfitpack.bispeu(n_logt.tck[0], n_logt.tck[1], n_logt.tck[2], \
+                                          n_logt.tck[3], n_logt.tck[4], \
+                                        flatten(log10_rhob), flatten(log10_temp))[0]
+        dn_dlogt = unflatten(dn_dlogt, log10_rhob.shape)
+        
+        # compute the dn/dx tensors 
+        dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)
+        dn_dt = tf.divide(dn_dlogt, 10**log10_temp) / np.log(10)
+        
+        return upstream * dn_drho, upstream * dn_dt
+    
+    nhi = n(log10_rhob, log10_temp, grid=False) # this is an ndarray
+    return tf.convert_to_tensor(nhi), grad
 
 def main():
     start1 = time.time() # track the total duration
@@ -96,7 +183,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 512, 512]
+    shape = [1, 10, 10]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])
@@ -130,7 +217,6 @@ def main():
     write_field(tau_real.field, 'tau_real', results_path)
 
     # redshift-space tau
-    
     #vpara = snap.read_field(ds_path_vz)
     vpara = snap.read_subfield(ds_path_vz, shape)
     

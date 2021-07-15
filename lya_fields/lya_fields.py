@@ -48,9 +48,25 @@ def write_field(field, dset_path, file_path):
 
     f.close()
         
+def flatten(t):
+    '''
+    Flatten an array or tensor t. Used in compute_nhi.
+    
+    '''
+    size = tf.size(t)
+    return tf.reshape(t, [size])
+
+def unflatten(t, shape):
+    '''
+    Unflatten an array or tensor t to have a specified shape. Used in compute_nhi.
+    
+    '''
+
+    return tf.reshape(t, shape)
+
 def set_nhi(snap, rhob, temp):
     '''
-    Interpolate n(rho, T) and its gradients, calls compute_nhi, and returns the n_HI grid.
+    Calls compute_nhi, and returns the n_HI grid.
     
     PARAMETERS
     ----------
@@ -69,83 +85,66 @@ def set_nhi(snap, rhob, temp):
     
     mean_rhob_cgs = omega_b * h*h * rho_crit_100_cgs
     a3_inv = 1.0 / (a * a * a)
-    #rhob_cgs = mean_rhob_cgs * a3_inv * rhob.field
-
-    # initialize EOS object
-    #nhi_field = tf.zeros(rhob.shape, dtype='float64')
-    eos_obj = eos.EOS_at_z(z)
+    rhob_cgs_conversion = mean_rhob_cgs * a3_inv
     
     start2 = time.time()
-    
-    ## interpolate the function f, which represents n(log(rho), log(T))
-
-    # set the ranges for interpolation
-    length = 100 
-    
-    log10_rho_range = np.linspace(-1, 3, num=length)
-    rho_range = 10**log10_rho_range
-    rhob_cgs_range = mean_rhob_cgs * a3_inv * rho_range
-
-    log10_t_range = np.linspace(3, 6, num=length)
-    temp_range = 10**log10_t_range
-    
-    # note: this is just a 2D grid, NOT a Grid object
-    nhi_grid = np.ndarray((length, length))
-    for i in range(length):
-        for j in range(length):
-            nhi_grid[i, j] = eos_obj.nyx_eos(rhob_cgs_range[i], temp_range[j])
-    
-    deg = 3 # degree of spline; default is 3
-    f = interp.RectBivariateSpline(log10_rho_range, log10_t_range, nhi_grid, kx=deg, ky=deg)
-    
-    ## interpolate the 1st-order partial derivatives: n_[log(rho)] and n_[log(T)]
-    f_logr_grid = f(log10_rho_range, log10_t_range, dx=1, dy=0)
-    f_logr = interp.interp2d(log10_rho_range, log10_t_range, f_logr_grid)
-
-    f_logt_grid = f(log10_rho_range, log10_t_range, dx=0, dy=1)
-    f_logt = interp.interp2d(log10_rho_range, log10_t_range, f_logt_grid)
-    
+        
     # get log10(x) via change of base formula
     log10_rhob = tf.math.log(rhob.field) / np.log(10)
     log10_temp = tf.math.log(temp.field) / np.log(10)
     
-    # pass the 2 fields and 3 functions to compute_nhi
-    nhi_field = compute_nhi(log10_rhob, log10_temp, f, f_logr, f_logt)
+    # compute the field
+    nhi_field = compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z)
     
     print('EOS duration:', time.time() - start2)
     
     return grid.Grid(nhi_field, rhob.shape, rhob.size)
 
-def flatten(t):
-    '''
-    Flatten an array or tensor t. Used in compute_nhi.
-    
-    '''
-    size = tf.size(t)
-    return tf.reshape(t, [size])
-
-def unflatten(t, shape):
-    '''
-    Unflatten an array or tensor t to have a specified shape. Used in compute_nhi.
-    
-    '''
-
-    return tf.reshape(t, shape)
-
 @tf.custom_gradient
-def compute_nhi(log10_rhob, log10_temp, n, n_logr, n_logt):
+def compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z):
     '''
-    Compute the neutral hydrogen number density (n_HI) field, returning a tensor. 
-    Includes a custom gradient function.
+    Compute the neutral hydrogen number density (n_HI) field, returning a 3D tensor. 
+    
+    n_HI and its two 1st-order partial derivatives are interpolated as functions of 
+    log10(rho) and log10(T). This method includes a custom gradient function, grad.
     
     PARAMETERS
     ----------
-    log10_rhob, log10_temp: 3D tensors containing log10(rho) and log10(T)
-    n: n(log(rho), log(T)) (function interpolated with RectBivariateSpline)
-    n_logr, n_logt: the partial derivatives of n_log10 w.r.t. log10(rho) and log10(T), 
-    respectively (functions interpolated with interp2d)
+    log10_rhob, log10_temp: 3D tensors containing log10(rho) and log10(T) 
+    rhob_cgs_conversion: conversion from rhob to rhob_cgs (float)
+    z: redshift (float)
     
     '''    
+    
+#     Interpolate the function n(log10(rho), log10(T)) and its two 1st-order partial 
+#     derivatives
+
+    # set the ranges for interpolation
+    length = 200 
+    
+    log10_rho_range = np.linspace(-2, 3, num=length)
+    rho_range = 10**log10_rho_range
+    rhob_cgs_range = rhob_cgs_conversion * rho_range
+
+    log10_t_range = np.linspace(3, 6, num=length)
+    temp_range = 10**log10_t_range
+    
+    eos_obj = eos.EOS_at_z(z)
+    nhi_grid = np.ndarray((length, length)) # this is a 2D grid, but NOT a Grid object
+    for i in range(length):
+        for j in range(length):
+            nhi_grid[i, j] = eos_obj.nyx_eos(rhob_cgs_range[i], temp_range[j])
+            
+    # interpolate n
+    deg = 3 # degree of spline; default is 3
+    n = interp.RectBivariateSpline(log10_rho_range, log10_t_range, nhi_grid, kx=deg, ky=deg)
+    
+    # interpolate the 1st-order partial derivatives: n_[log10(rho)] and n_[log10(T)]
+    n_logr_grid = n(log10_rho_range, log10_t_range, dx=1, dy=0)
+    n_logr = interp.interp2d(log10_rho_range, log10_t_range, n_logr_grid)
+
+    n_logt_grid = n(log10_rho_range, log10_t_range, dx=0, dy=1)
+    n_logt = interp.interp2d(log10_rho_range, log10_t_range, n_logt_grid)
     
     def grad(upstream):
         '''
@@ -154,7 +153,7 @@ def compute_nhi(log10_rhob, log10_temp, n, n_logr, n_logt):
         
         '''
         
-        # compute the dn/dlogx tensors 
+        # compute the tensors containing the dn/dlogx values 
         dn_dlogr = interp.dfitpack.bispeu(n_logr.tck[0], n_logr.tck[1], n_logr.tck[2], \
                                           n_logr.tck[3], n_logr.tck[4], \
                                         flatten(log10_rhob), flatten(log10_temp))[0]
@@ -165,13 +164,13 @@ def compute_nhi(log10_rhob, log10_temp, n, n_logr, n_logt):
                                         flatten(log10_rhob), flatten(log10_temp))[0]
         dn_dlogt = unflatten(dn_dlogt, log10_rhob.shape)
         
-        # compute the dn/dx tensors 
+        # compute the tensors containing the dn/dx values 
         dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)
         dn_dt = tf.divide(dn_dlogt, 10**log10_temp) / np.log(10)
         
         return upstream * dn_drho, upstream * dn_dt
     
-    nhi = n(log10_rhob, log10_temp, grid=False) # this is an ndarray
+    nhi = n(log10_rhob, log10_temp, grid=False) # this is a 3D ndarray
     return tf.convert_to_tensor(nhi), grad
 
 def main():
@@ -183,7 +182,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 10, 10]
+    shape = [1, 10, 1024]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])

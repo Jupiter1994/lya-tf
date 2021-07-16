@@ -114,7 +114,7 @@ def compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z):
     rhob_cgs_conversion: conversion from rhob to rhob_cgs (float)
     z: redshift (float)
     
-    '''    
+    '''
     
 #     Interpolate the function n(log10(rho), log10(T)) and its two 1st-order partial 
 #     derivatives

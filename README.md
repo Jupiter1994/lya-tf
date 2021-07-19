@@ -12,3 +12,4 @@ Mapping baryon properties to Lyman-alpha flux with TensorFlow. Based on the C++ 
 - `lya_fields` replicates the `/apps/lya_fields` application in Gimlet. It contains the main script, `lya_fields.py`, as well as dependencies, results files, and Jupyter notebooks.
 - `lya-tf.yml` is the file specifying this project's Conda environment, which includes TensorFlow 2.4. (NOTE: Python 3.7 and NumPy 1.18 are necessary for step 2, which wraps eos-t.f90 in Python.)
 - `data_exploration.ipynb` explores the HDF5 file containing the hydrodynamical simulation results.
+- `test_gpus.ipynb` and `test_gpus.py` explore TensorFlow usage with GPUs.

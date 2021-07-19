@@ -98,6 +98,7 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     # only look at cells with positive density
     inds = all_inds[(n_array > 0).numpy()]
 
+    @tf.autograph.experimental.do_not_convert()
     def add_tau_profile(i):
         '''
         Computes the optical depth contribution of an element at a certain cell/pixel 
@@ -208,6 +209,7 @@ def gmlt_spec_od_grid(universe, redshift, size,
     start2 = time.time()
     
     # @tf.function(); including this throws a "Tensor can't be used as Python bool" error
+    @tf.autograph.experimental.do_not_convert()
     def od_pwc_exact2(skewers):
         '''
         Call gmlt_spec_od_pwc_exact, except all arguments (besides the 3 skewers)

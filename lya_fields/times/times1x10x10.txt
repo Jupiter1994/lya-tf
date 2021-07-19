@@ -1,0 +1,4 @@
+EOS duration = 2.1176536083221436
+tau_real duration = 2.20328426361084
+tau_red duration = 2.3426413536071777
+Total duration = 20.25612163543701

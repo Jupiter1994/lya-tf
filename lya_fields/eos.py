@@ -20,7 +20,7 @@ class EOS_at_z:
         
         '''
         
-        self.z = z
+        self.z = float(z)
         
     def nyx_eos(self, rhob, temp):
         '''
@@ -28,11 +28,24 @@ class EOS_at_z:
 
         PARAMETERS
         ----------
-        rhob: a float
-        temp: a float
+        rhob, temp: floats or 1-element tensors
         
         '''
+
+        return eos_t.eos.nyx_eos(self.z, rhob, temp)
+    
+    def nyx_eos_vec(self, arr):
+        '''
+        A version of nyx_eos that supports vectorization.
+
+        PARAMETERS
+        ----------
+        arr: tuple containing (rhob, temp)
         
+        '''
+        rhob = arr[0]
+        temp = arr[1]
+
         return eos_t.eos.nyx_eos(self.z, rhob, temp)
         
 def main():

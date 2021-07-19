@@ -76,12 +76,23 @@ def set_nhi(snap, rhob, temp):
     # run through EOS for each cell
     start2 = time.time()
     
-    for i in range(rhob.shape[0]):
-        for j in range(rhob.shape[1]):
-            for k in range(rhob.shape[2]):
-                rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
-                # assign rho to nhi_field[i,j,k]
-                nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
+    size = tf.size(rhob_cgs).numpy()
+    # flatten the arrays
+    elems = (tf.reshape(rhob_cgs, [size,]), tf.reshape(temp.field, [size]))
+    nhi_field = tf.map_fn(eos_obj.nyx_eos_vec, elems, fn_output_signature=tf.float64)
+    
+    # un-flatten the result
+    nhi_field = tf.reshape(nhi_field, rhob.shape)
+    
+#     elems = (rhob_cgs, temp.field)
+#     nhi_field = tf.vectorized_map(eos_obj.nyx_eos, elems)
+    
+#     for i in range(rhob.shape[0]):
+#         for j in range(rhob.shape[1]):
+#             for k in range(rhob.shape[2]):
+#                 rho = eos_obj.nyx_eos(rhob_cgs[i,j,k], temp.field[i,j,k])
+#                 # assign rho to nhi_field[i,j,k]
+#                 nhi_field = tf.tensor_scatter_nd_add(nhi_field, [[i,j,k]], [rho])
      
     print('EOS duration:', time.time() - start2)
     
@@ -96,7 +107,7 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 512, 512]
+    shape = [2, 2, 1024]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])
@@ -119,12 +130,13 @@ def main():
     write_field(nhi.field, 'nhi', results_path)
     
     ### calculate optical depth fields ###
+    
     # real-space tau
     vpara = grid.Grid(tf.zeros(rhob.shape, dtype='float64'), rhob.shape, rhob.size)
     
     start = time.time()
     tau_real = gmlt_spec_od_grid(snap.universe, snap.z, nhi.size,
-            nhi.field, temp.field, vpara.field, nhi.field.shape[2])
+            nhi.field, temp.field, vpara.field, nhi.field.shape[2])    
     times.write('tau_real duration = ' + str(time.time() - start) + '\n')
     
     write_field(tau_real.field, 'tau_real', results_path)

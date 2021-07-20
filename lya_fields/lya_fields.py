@@ -168,7 +168,8 @@ def compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z):
         dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)
         dn_dt = tf.divide(dn_dlogt, 10**log10_temp) / np.log(10)
         
-        return upstream * dn_drho, upstream * dn_dt
+        # don't calculate grads for rhob_cgs_conversion and z
+        return upstream * dn_drho, upstream * dn_dt, 0, 0
     
     nhi = n(log10_rhob, log10_temp, grid=False) # this is a 3D ndarray
     return tf.convert_to_tensor(nhi), grad

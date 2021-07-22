@@ -7,6 +7,7 @@ Write the number density of neutral hydrogen (nHI), real- and redshift-space opt
 import h5py
 import numpy as np
 import scipy.interpolate as interp
+import sys
 import tensorflow as tf
 import time
 
@@ -153,6 +154,26 @@ def compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z):
         
         '''
         
+        # test flatten()
+#         try:
+#             filler = flatten(log10_rhob)
+#             print('flatten works!')
+#         except:
+#             print('Error: flatten method doesn\'t work')
+#             print('Traceback:')
+#             print(sys.exc_info()[2])
+            
+        # test interp.dfitpack.bispeu
+        try:
+            fake_rho, fake_t = [[-20,-19]], [[[4,3]]]
+            filler = interp.dfitpack.bispeu(n_logr.tck[0], n_logr.tck[1], n_logr.tck[2], \
+                                          n_logr.tck[3], n_logr.tck[4], \
+                                        flatten(fake_rho), flatten(fake_t))[0]
+            print('interp.dfitpack.bispeu works!')
+        except Exception as err:
+            print('Error: interp.dfitpack.bispeu doesn\'t work')
+            print(sys.exc_info()[0])
+            
         # compute the tensors containing the dn/dlogx values 
         dn_dlogr = interp.dfitpack.bispeu(n_logr.tck[0], n_logr.tck[1], n_logr.tck[2], \
                                           n_logr.tck[3], n_logr.tck[4], \
@@ -168,7 +189,8 @@ def compute_nhi(log10_rhob, log10_temp, rhob_cgs_conversion, z):
         dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)
         dn_dt = tf.divide(dn_dlogt, 10**log10_temp) / np.log(10)
         
-        return upstream * dn_drho, upstream * dn_dt
+        # don't calculate grads for rhob_cgs_conversion and z
+        return upstream * dn_drho, upstream * dn_dt, 0, 0
     
     nhi = n(log10_rhob, log10_temp, grid=False) # this is a 3D ndarray
     return tf.convert_to_tensor(nhi), grad

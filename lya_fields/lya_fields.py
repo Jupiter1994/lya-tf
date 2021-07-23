@@ -204,10 +204,14 @@ def main():
     snap = snapshot.Snapshot(filename)
     
     # subsection shape
-    shape = [1, 10, 1024]
+    shape = [2, 2, 1024]
     
     # string representing the subsection's dimensions, e.g. '4x4x4'
     dims_str = str(shape[0]) + 'x' + str(shape[1]) + 'x' + str(shape[2])
+    
+    device_name = tf.test.gpu_device_name()
+    if device_name == '/device:GPU:0':
+        dims_str += 'gpu'
     
     # file paths to routine durations and results
     t_path = 'times/times' + dims_str + '.txt'

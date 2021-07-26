@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import scipy.interpolate as interp
+import sys
 
 # local modules
 import eos_t
@@ -85,7 +86,7 @@ class EOS_at_z:
 
         return eos_t.eos.nyx_eos(self.z, rhob, temp)
 
-    def flatten(t):
+    def flatten(self, t):
         '''
         Flatten an array or tensor t. Used in compute_nhi.
 
@@ -94,7 +95,7 @@ class EOS_at_z:
         size = tf.size(t)
         return tf.reshape(t, [size])
 
-    def unflatten(t, shape):
+    def unflatten(self, t, shape):
         '''
         Unflatten an array or tensor t to have a specified shape. Used in compute_nhi.
 
@@ -125,26 +126,26 @@ class EOS_at_z:
             '''
             
             # test interp.dfitpack.bispeu
-#             try:
-#                 fake_rho, fake_t = [[-20,-19]], [[[4,3]]]
-#                 filler = interp.dfitpack.bispeu(self.n_logr.tck[0], self.n_logr.tck[1], self.n_logr.tck[2], \
-#                                               self.n_logr.tck[3], self.n_logr.tck[4], \
-#                                             flatten(fake_rho), flatten(fake_t))[0]
-#                 print('interp.dfitpack.bispeu works!')
-#             except Exception as err:
-#                 print('Error: interp.dfitpack.bispeu doesn\'t work')
-#                 print(sys.exc_info()[0])
+            try:
+                fake_rho, fake_t = [[-20,-19]], [[[4,3]]]
+                filler = interp.dfitpack.bispeu(self.n_logr.tck[0], self.n_logr.tck[1], self.n_logr.tck[2], \
+                                              self.n_logr.tck[3], self.n_logr.tck[4], \
+                                            self.flatten(fake_rho), self.flatten(fake_t))[0]
+                print('interp.dfitpack.bispeu works!')
+            except Exception as err:
+                print('Error: interp.dfitpack.bispeu doesn\'t work')
+                print(sys.exc_info()[0])
 
             # compute the tensors containing the dn/dlogx values 
             dn_dlogr = interp.dfitpack.bispeu(self.n_logr.tck[0], self.n_logr.tck[1], self.n_logr.tck[2], \
                                               self.n_logr.tck[3], self.n_logr.tck[4], \
-                                            flatten(log10_rhob), flatten(log10_temp))[0]
-            dn_dlogr = unflatten(dn_dlogr, log10_rhob.shape)
+                                            self.flatten(log10_rhob), self.flatten(log10_temp))[0]
+            dn_dlogr = self.unflatten(dn_dlogr, log10_rhob.shape)
 
             dn_dlogt = interp.dfitpack.bispeu(self.n_logt.tck[0], self.n_logt.tck[1], self.n_logt.tck[2], \
                                               self.n_logt.tck[3], self.n_logt.tck[4], \
-                                            flatten(log10_rhob), flatten(log10_temp))[0]
-            dn_dlogt = unflatten(dn_dlogt, log10_rhob.shape)
+                                            self.flatten(log10_rhob), self.flatten(log10_temp))[0]
+            dn_dlogt = self.unflatten(dn_dlogt, log10_rhob.shape)
 
             # compute the tensors containing the dn/dx values 
             dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)

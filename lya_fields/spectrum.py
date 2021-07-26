@@ -42,6 +42,35 @@ def gmlt_spec_odf_hilya(h, e_z):
     '''
     return odf_const * odf_hilya * gmlt_spec_odf_cosmo(h, e_z)
 
+def roll_left(matrix, shifts):
+    '''
+    For each row in matrix, roll/shift the elements to the left by a certain offset (given by shifts).
+    Assumes that matrix is a tensor with shape (m, n) and shifts is a tensor with shape (m,). Used in
+    the gmlt_spec_od_pwc_exact method.
+    
+    This method is taken from this Stack Overflow answer: https://stackoverflow.com/a/58176568/16360935
+    
+    '''
+
+    # get shape of the input matrix
+    shape = tf.shape(matrix)
+
+    # compute and stack the meshgrid to get the index matrix of shape (2,m,n)
+    ind = tf.stack(tf.meshgrid(tf.range(shape[0]), tf.range(shape[1]), indexing='ij'))
+
+    # reshape it to (m,n,2)
+    ind = tf.transpose(ind, [1,2,0])
+
+    # add the value from shifts to the corresponding row and apply modulo shape[1];
+    # this will effectively introduce the desired shift, but at the level of indices
+    shifted_ind = tf.math.floormod(tf.transpose(tf.transpose(ind[:,:,1]) + shifts), shape[1])
+
+    # convert the shifted indices to the right shape
+    new_ind = tf.transpose(tf.stack([ind[:,:,0], shifted_ind]) , [1,2,0]) 
+
+    # return the resliced tensor
+    return tf.gather_nd(matrix, new_ind)
+
 def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements, 
                            n_array, vpara_array, t_array, num_pixels):
     '''
@@ -49,6 +78,7 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     that contains the optical depth of each cell along a line of sight.
     
     Note: gmlt_spec_od_grid uses the same value for num_elements and num_pixels.
+    This value is referred to as N in the comments.
     
     PARAMETERS
     ----------
@@ -59,20 +89,6 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     num_pixels: pixel width of the simulated spectrum; an int
     
     '''
-    
-    def ind_wrap(ind):
-        '''
-        Performs util.gmlt_index_wrap on an index, where r (in this case, num_pixels)
-        is pre-specified outside the scope of this method.
-
-        PARAMETERS
-        ----------
-        ind: index (an int tensor)
-
-        '''
-
-        return util.gmlt_index_wrap(ind, num_pixels)
-    
     # numerical floors
     t_min = 1.0
 
@@ -88,72 +104,58 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     # Initialize tau array
     tau_array = tf.zeros([num_pixels], dtype='float64')
     
-    all_inds = np.arange(num_elements)
-    
     # line-center velocity tensors
+    all_inds = np.arange(num_elements)
     vlc_l = element_dv * all_inds + vpara_array
     vlc_m = element_dv * (all_inds + 0.5) + vpara_array
     vlc_h = element_dv * (all_inds + 1.0) + vpara_array
     
     # only look at cells with positive density
-    inds = all_inds[(n_array > 0).numpy()]
-
-    @tf.autograph.experimental.do_not_convert()
-    def add_tau_profile(i):
-        '''
-        Computes the optical depth contribution of an element at a certain cell/pixel 
-        and adds it to tau_array. (This contribution is fitted by a Doppler profile.)
-        
-        PARAMETERS
-        ----------
-        i: index of the element
-        
-        '''
-        
-        # The line center and thermal broadening in pixel index space.
-        pix_lc = vlc_m[i] / pixel_dv
-        pix_doppler = v_doppler[i] / pixel_dv
-
-        # Figure out which pixels we should restrict to.
-        num_integ_pixels = tf.cast(5 * pix_doppler + 0.5, dtype=tf.int32) + 1
-        num_integ_pixels = tf.cast(num_integ_pixels, dtype=tf.float64)
-        ipix_lo = pix_lc - num_integ_pixels - 1
-        ipix_hi = pix_lc + num_integ_pixels + 1
-        
-        # convert the Doppler profile bounds from float to int
-        ipix_lo = tf.cast(ipix_lo, dtype=tf.int32)
-        ipix_hi = tf.cast(ipix_hi, dtype=tf.int32)
-        
-        ### Create the Doppler profile and add it to tau_array
-        
-        # Include the hi bin.
-        ipixes = tf.constant(range(ipix_lo, ipix_hi + 1), dtype=tf.int32)
-        # wrap indices into the spectrum's bounds
-        jw = tf.map_fn(ind_wrap, ipixes)
-        # necessary for tensor_scatter_nd_add
-        jw = tf.reshape(jw, [tf.size(jw).numpy(), 1]) 
-        
-        # Calculate the bin velocity with the original indices to match v_lc
-        ipixes = tf.cast(ipixes, dtype=tf.float64)
-        v_pixel = tf.math.multiply(pixel_dv, tf.math.add(ipixes,0.5))
-        
-        # Add tau contribution
-        dxl = (v_pixel - vlc_l[i]) / v_doppler[i]
-        dxh = (v_pixel - vlc_h[i]) / v_doppler[i]
-        tau_i = tf.math.multiply(n_array[i], (tf.math.erf(dxl) - tf.math.erf(dxh)))
-        
-        nonlocal tau_array # allows add_tau_profile to change tau_array
-#         print('\n\n\ntau_array type (inside add_tau_profile):')
-#         print(type(tau_array))
-#         print('\n\n\n')
-        
-        tau_array = tf.tensor_scatter_nd_add(tau_array, jw, tau_i)
-        
-        return 1 # map_fn breaks if "None" is returned
-
-    # add the profile of each element to tau_array; filler should just be a tensor of 1's
-    filler = tf.map_fn(add_tau_profile, inds, fn_output_signature=tf.int32)
+    # inds = all_inds[(n_array > 0).numpy()]
     
+    # the line center and thermal broadening in pixel index space; both have shape (N,)
+    pix_lc = tf.cast(vlc_m / pixel_dv, dtype=tf.int32)
+    pix_doppler = v_doppler / pixel_dv
+    
+    # Figure out which pixels we should restrict to.
+    #num_integ_pixels = tf.cast(5 * pix_doppler + 0.5, dtype=tf.int32) + 1
+    num_integ_pixels = 29
+    window_width = (int) (2 * (num_integ_pixels) + 1) # 60
+    
+    # the Doppler profile bounds; both have shape (N,)
+    ipix_lo = pix_lc - num_integ_pixels - 1
+    ipix_hi = pix_lc + num_integ_pixels + 1
+    ipixes = tf.linspace(ipix_lo, ipix_hi, window_width + 1, axis=-1) # (N, 61)
+    
+    # calculate the bin velocity with the original indices to (eventually) match v_lc
+    v_pixel = tf.math.multiply(pixel_dv, tf.math.add(ipixes,0.5))
+    
+    # create tau profiles
+    vlc_l = tf.reshape(vlc_l, [num_pixels, 1])
+    vlc_h = tf.reshape(vlc_h, [num_pixels, 1])
+    v_dopp_diag = tf.linalg.diag(v_doppler)
+    v_dopp_diag_inv = tf.linalg.inv(v_dopp_diag)
+    
+    dxl = tf.linalg.matmul(v_dopp_diag_inv, v_pixel - vlc_l)
+    dxh = tf.linalg.matmul(v_dopp_diag_inv, v_pixel - vlc_h)
+    
+    n_diag = tf.linalg.diag(n_array)
+    tau_prof = tf.linalg.matmul(n_diag, tf.math.erf(dxl) - tf.math.erf(dxh))
+    
+    # "insert" tau_prof onto a N^2 grid
+    #extra_cols = num_pixels - tf.shape(tau_prof).numpy()[1] # this only works with map_fn
+    extra_cols = num_pixels - window_width - 1 # this works with vectorized_map
+    paddings = tf.constant([[0, 0], [0, extra_cols]])
+    tau_prof = tf.pad(tau_prof, paddings, "CONSTANT", constant_values=0)
+    
+    # roll each profile to its correct line center;
+    # the offsets should be pix_lc - 30 to the right
+    offsets_left = num_pixels - (pix_lc - 30)
+    tau_prof_rolled = roll_left(tau_prof, offsets_left)
+    
+    # add up all profiles
+    tau_array = tf.reduce_sum(tau_prof_rolled, axis=0)
+
     # Don't forget prefactor.
     f = 0.5 * od_factor
     tau_array *= f
@@ -229,11 +231,9 @@ def gmlt_spec_od_grid(universe, redshift, size,
                                      n, vp, t, num_pixels)
     
     # apply od_pwc_exact2 to the x*y skewers
-    
     skewers = (reshape_2d(n_hi), reshape_2d(temp), reshape_2d(v_para))
-    # vectorized_map throws errors
-    # tau_field = tf.vectorized_map(od_pwc_exact2, skewers)
-    tau_field = tf.map_fn(od_pwc_exact2, skewers, fn_output_signature=tf.float64)
+    #tau_field = tf.map_fn(od_pwc_exact2, skewers, fn_output_signature=tf.float64)
+    tau_field = tf.vectorized_map(od_pwc_exact2, skewers)
         
     # reshape tau from (x*y,z) to (x,y,z)
     tau_field = tf.reshape(tau_field, n_hi.shape) # reshape (x*y,z) to (x,y,z)

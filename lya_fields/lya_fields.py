@@ -19,7 +19,7 @@ from spectrum import gmlt_spec_od_grid
 from constants import *
 
 # subsection shape
-shape = [2, 2, 1024]
+shape = [1, 1024, 1024]
     
 # define dataset paths
 ds_path_rhob = "/native_fields/baryon_density"

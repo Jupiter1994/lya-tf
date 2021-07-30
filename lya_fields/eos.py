@@ -14,7 +14,7 @@ class EOS_at_z:
     
     def __init__(self, z, rhob_cgs_conversion):
         '''
-        Read in the redshift and perform interpolations.
+        Read in the redshift and interpolate the function n_HI.
         
         PARAMETERS
         ----------
@@ -25,14 +25,12 @@ class EOS_at_z:
         ------------------
         z: redshift
         n: the function n(log10(rho), log10(T)), interpolated with RectBivariateSpline
-        n_logr, n_logt: the partial derivatives of n w.r.t. log10(rho) and log10(T),
-        respectively; both interpolated with interp2d
         
         '''
 
         self.z = float(z)
         
-        ## interpolate the function n_HI and its two 1st-order partial derivatives
+        ## interpolate the function n_HI
         
         # set the ranges for interpolation
         length = 200 
@@ -49,16 +47,15 @@ class EOS_at_z:
             for j in range(length):
                 nhi_grid[i, j] = self.nyx_eos(rhob_cgs_range[i], temp_range[j])
                 
-        # interpolate n
         deg = 3 # degree of spline; default is 3
         self.n = interp.RectBivariateSpline(log10_rho_range, log10_t_range, nhi_grid, kx=deg, ky=deg)
 
         # interpolate the 1st-order partial derivatives: n_[log10(rho)] and n_[log10(T)]
-        n_logr_grid = self.n(log10_rho_range, log10_t_range, dx=1, dy=0)
-        self.n_logr = interp.interp2d(log10_rho_range, log10_t_range, n_logr_grid)
+#         n_logr_grid = self.n(log10_rho_range, log10_t_range, dx=1, dy=0)
+#         self.n_logr = interp.interp2d(log10_rho_range, log10_t_range, n_logr_grid)
 
-        n_logt_grid = self.n(log10_rho_range, log10_t_range, dx=0, dy=1)
-        self.n_logt = interp.interp2d(log10_rho_range, log10_t_range, n_logt_grid)
+#         n_logt_grid = self.n(log10_rho_range, log10_t_range, dx=0, dy=1)
+#         self.n_logt = interp.interp2d(log10_rho_range, log10_t_range, n_logt_grid)
         
     def nyx_eos(self, rhob, temp):
         '''
@@ -74,7 +71,7 @@ class EOS_at_z:
     
     def nyx_eos_vec(self, arr):
         '''
-        A version of nyx_eos that supports vectorization.
+        A version of nyx_eos that supports vectorization. (Not used.)
 
         PARAMETERS
         ----------
@@ -125,32 +122,17 @@ class EOS_at_z:
 
             '''
             
-            # test interp.dfitpack.bispeu
-            try:
-                fake_rho, fake_t = [[-20,-19]], [[[4,3]]]
-                filler = interp.dfitpack.bispeu(self.n_logr.tck[0], self.n_logr.tck[1], self.n_logr.tck[2], \
-                                              self.n_logr.tck[3], self.n_logr.tck[4], \
-                                            self.flatten(fake_rho), self.flatten(fake_t))[0]
-                print('interp.dfitpack.bispeu works!')
-            except Exception as err:
-                print('Error: interp.dfitpack.bispeu doesn\'t work')
-                print(sys.exc_info()[0])
-
             # compute the tensors containing the dn/dlogx values 
-            dn_dlogr = interp.dfitpack.bispeu(self.n_logr.tck[0], self.n_logr.tck[1], self.n_logr.tck[2], \
-                                              self.n_logr.tck[3], self.n_logr.tck[4], \
-                                            self.flatten(log10_rhob), self.flatten(log10_temp))[0]
+            dn_dlogr = self.n(np.array(log10_rhob).flatten(), np.array(log10_temp).flatten(), dx=1, dy=0, grid=False)
+            dn_dlogt = self.n(np.array(log10_rhob).flatten(), np.array(log10_temp).flatten(), dx=0, dy=1, grid=False)
+            
             dn_dlogr = self.unflatten(dn_dlogr, log10_rhob.shape)
-
-            dn_dlogt = interp.dfitpack.bispeu(self.n_logt.tck[0], self.n_logt.tck[1], self.n_logt.tck[2], \
-                                              self.n_logt.tck[3], self.n_logt.tck[4], \
-                                            self.flatten(log10_rhob), self.flatten(log10_temp))[0]
-            dn_dlogt = self.unflatten(dn_dlogt, log10_rhob.shape)
-
+            dn_dlogt = self.unflatten(dn_dlogt, log10_temp.shape)
+            
             # compute the tensors containing the dn/dx values 
             dn_drho = tf.divide(dn_dlogr, 10**log10_rhob) / np.log(10)
             dn_dt = tf.divide(dn_dlogt, 10**log10_temp) / np.log(10)
-        
+            
             return upstream * dn_drho, upstream * dn_dt
         
         nhi = self.n(log10_rhob, log10_temp, grid=False) # this is a 3D ndarray

@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import scipy.interpolate as interp
-import sys
 
 # local modules
 import eos_t

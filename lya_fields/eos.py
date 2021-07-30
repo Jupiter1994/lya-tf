@@ -49,13 +49,6 @@ class EOS_at_z:
                 
         deg = 3 # degree of spline; default is 3
         self.n = interp.RectBivariateSpline(log10_rho_range, log10_t_range, nhi_grid, kx=deg, ky=deg)
-
-        # interpolate the 1st-order partial derivatives: n_[log10(rho)] and n_[log10(T)]
-#         n_logr_grid = self.n(log10_rho_range, log10_t_range, dx=1, dy=0)
-#         self.n_logr = interp.interp2d(log10_rho_range, log10_t_range, n_logr_grid)
-
-#         n_logt_grid = self.n(log10_rho_range, log10_t_range, dx=0, dy=1)
-#         self.n_logt = interp.interp2d(log10_rho_range, log10_t_range, n_logt_grid)
         
     def nyx_eos(self, rhob, temp):
         '''

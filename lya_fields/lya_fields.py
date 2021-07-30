@@ -17,16 +17,11 @@ import snapshot
 from spectrum import gmlt_spec_od_grid
 from constants import *
 
-<<<<<<< HEAD
-# subsection shape
-shape = [1, 1024, 1024]
-=======
 save_grads = False
 
 ## subsection shape
 shape = [1, 1, 1024]
->>>>>>> gradient
-    
+
 ## define dataset paths
 ds_path_rhob = "/native_fields/baryon_density"
 ds_path_temp = "/native_fields/temperature"

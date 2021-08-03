@@ -117,7 +117,7 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     pix_lc = tf.cast(vlc_m / pixel_dv, dtype=tf.int32)
     pix_doppler = v_doppler / pixel_dv
     
-    # Figure out which pixels we should restrict to.
+    # figure out which pixels we should restrict to
     #num_integ_pixels = tf.cast(5 * pix_doppler + 0.5, dtype=tf.int32) + 1
     num_integ_pixels = 29
     window_width = (int) (2 * (num_integ_pixels) + 1) # 60
@@ -150,7 +150,7 @@ def gmlt_spec_od_pwc_exact(od_factor, m_x, v_domain, num_elements,
     
     # roll each profile to its correct line center;
     # the offsets should be pix_lc - 30 to the right
-    offsets_left = num_pixels - (pix_lc - 30)
+    offsets_left = num_pixels - (pix_lc - num_integ_pixels - 1)
     tau_prof_rolled = roll_left(tau_prof, offsets_left)
     
     # add up all profiles

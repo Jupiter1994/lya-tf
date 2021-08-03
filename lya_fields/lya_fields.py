@@ -17,7 +17,7 @@ import snapshot
 from spectrum import gmlt_spec_od_grid
 from constants import *
 
-save_grads = False
+save_grads = True
 
 ## subsection shape
 shape = [1, 1, 1024]
@@ -58,6 +58,10 @@ def write_field(field, dset_path, file_path):
     
     '''
     
+    ## when ssh-ing to Cori, I ran into an error with opening a file
+    # see: https://github.com/h5py/h5py/issues/1101#issuecomment-611515599
+    
+    # f = h5py.File(file_path,'w') # create file, truncate if exists
     f = h5py.File(file_path,'a') # read/write if file exists, create otherwise
 
     if dset_path in f: # replace an existing dataset
@@ -108,9 +112,6 @@ def set_nhi(snap, rhob, temp):
 
 def main():
     
-    # track routine durations
-    times = open(t_path, 'w')
-    
     start1 = time.time() # track the total duration
     
     ### load in the density and temperature fields as grids ###
@@ -128,6 +129,9 @@ def main():
     # file paths to routine durations and results
     t_path = 'times/times' + dims_str + '.txt'
     results_path = 'results/tf_fields' + dims_str + '.h5'
+    
+    # track routine durations
+    times = open(t_path, 'w')
     
     with tf.GradientTape(persistent=True) as tape:
         rhob = snap.read_subfield(ds_path_rhob, shape)
@@ -161,6 +165,7 @@ def main():
 
         write_field(tau_red.field, 'tau_red', results_path)
     
+    start = time.time()
     if save_grads:
         dn_dr = tape.gradient(nhi.field, rhob.field)
         dn_dt = tape.gradient(nhi.field, temp.field)
@@ -170,7 +175,8 @@ def main():
         dtreal_dr = tape.jacobian(tau_real.field, rhob.field)
         dtred_dr = tape.jacobian(tau_red.field, rhob.field)
         
-        # note: for one skewer, the below lines may throw an out-of-memory error
+        # note: for one skewer, the below lines may throw an out-of-memory error,
+        # although I didn't get an error when I ran this script on 1 node in Cori's interactive mode
         dtreal_dt = tape.jacobian(tau_real.field, temp.field)
         dtred_dt = tape.jacobian(tau_red.field, temp.field)
         
@@ -178,6 +184,8 @@ def main():
         write_field(dtred_dr, path_dtred_dr, results_path)
         write_field(dtreal_dt, path_dtreal_dt, results_path)
         write_field(dtred_dt, path_dtred_dt, results_path)
+    
+    times.write('Gradient duration = ' + str(time.time() - start) + '\n')
     
     times.write('Total duration = ' + str(time.time() - start1) + '\n')
     times.close()

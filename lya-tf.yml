@@ -5,6 +5,7 @@ dependencies:
   - python=3.7
   - numpy=1.18
   - tensorflow-gpu
+  - tensorflow-probability=0.12.2
   - jupyterlab
   - ipykernel
   - matplotlib

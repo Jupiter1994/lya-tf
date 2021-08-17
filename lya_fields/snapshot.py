@@ -57,22 +57,29 @@ class Snapshot:
         
         return grid.Grid(field, self.shape, self.size)
     
-    def read_subfield(self, path, subshape):
+    def read_subfield(self, path, subshape, origin=(0,0,0)):
         '''
-        Read in a subsection of a field from (0,0,0). Returns a Grid object.
+        Given a field, read in a subsection with a specific shape and origin point. 
+        Returns a Grid object.
         
         PARAMETERS
         ----------
         path: the field's path within the snapshot file
-        subshape: the dimensions of the subsection; should be a list of 3 integers
+        subshape: a list of 3 integers specifying the subfield's shape
+        origin: a list of 3 integers specifying the subfield's "starting" corner; default is (0,0,0)
         
         '''
+        
         # scale factors between the subsection and the full field
         scale = tf.math.divide(subshape, self.shape)
         
+        inds = (slice(origin[0], origin[0] + subshape[0]),
+                slice(origin[1], origin[1] + subshape[1]),
+                slice(origin[2], origin[2] + subshape[2]))
+        
         snap = h5py.File(self.file_path,'r')
         field = snap[path][()] # ndarray
-        field = field[:subshape[0], :subshape[1], :subshape[2]]
+        field = field[inds]
         field = tf.Variable(field, dtype='float64') # ndarray to tensor
 
         snap.close()

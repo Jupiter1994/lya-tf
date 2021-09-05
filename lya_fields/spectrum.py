@@ -238,7 +238,7 @@ def gmlt_spec_od_grid(universe, redshift, size,
     # reshape tau from (x*y,z) to (x,y,z)
     tau_field = tf.reshape(tau_field, n_hi.shape) # reshape (x*y,z) to (x,y,z)
     
-    print('tau duration:', time.time() - start2)
+    #print('tau duration:', time.time() - start2)
         
     return grid.Grid(tau_field, n_hi.shape, size)
 

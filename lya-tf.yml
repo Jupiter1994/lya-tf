@@ -9,4 +9,5 @@ dependencies:
   - jupyterlab
   - ipykernel
   - matplotlib
+  - gfortran
 prefix: /Users/jupiterding/miniconda3/envs/lya-tf

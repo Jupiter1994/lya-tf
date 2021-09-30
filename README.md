@@ -1,5 +1,5 @@
-## Lya-TF
-Mapping baryon properties to Lyman-alpha flux with TensorFlow. Based on the C++ toolkit Gimlet.
+## THALAS/Lya-TF
+TensorFlow Hydrodynamics Analysis for Lyman Alpha Simulations (THALAS), originally named Lya-TF. Based on the C++ toolkit Gimlet.
 
 ## Tutorial
 1. Activate the Conda environment specified by lya-tf.yml.

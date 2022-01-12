@@ -77,7 +77,7 @@ class EOS_at_z:
 
     def flatten(self, t):
         '''
-        Flatten an array or tensor t. Used in compute_nhi.
+        Flatten an array or tensor t. (Not used.)
 
         '''
         

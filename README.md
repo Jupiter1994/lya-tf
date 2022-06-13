@@ -1,5 +1,8 @@
 ## THALAS/Lya-TF
-TensorFlow Hydrodynamics Analysis for Lyman Alpha Simulations (THALAS), originally named Lya-TF. Based on the C++ toolkit Gimlet.
+TensorFlow Hydrodynamics Analysis for Lyman Alpha Simulations (THALAS), originally named Lya-TF, is a fully differentiable tool for mapping fields of baryonic properties (baryon density, temperature, and velocity) to Lyman-alpha optical depth. Based on the C++ toolkit Gimlet.
+
+## Dark Matter Reconstruction Demo
+[Here](https://colab.research.google.com/drive/1hc8YgpVpT5k57tXn5Il8BCGYrtDrAEX6?usp=sharing) is a simple demonstration of using THALAS to reconstruct a dark matter (DM) density field from a given Lyman-alpha optical depth field. It uses the Fluctuating Gunn-Peterson Approximation (FGPA) to map DM density to baryonic properties, while THALAS maps the baryon fields to optical depth.
 
 ## Tutorial
 1. Activate the Conda environment specified by lya-tf.yml.
